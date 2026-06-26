@@ -36,12 +36,13 @@ export CUDA_HOME="${CUDA_HOME:-/usr/local/cuda}"
 export PATH="$CUDA_HOME/bin:$PATH"
 
 cd "$REPO_ROOT"
-VIDEO_STEM="$(basename "$VIDEO")"; VIDEO_STEM="${VIDEO_STEM%.*}"
+VIDEO_STEM="$(basename "$VIDEO")"
+VIDEO_STEM="${VIDEO_STEM%.*}"
 echo "[run] GPU=$GPU_ID  video=$VIDEO  static_cam=on"
 echo "[run] 输出将落在 outputs/$VIDEO_STEM/"
 
-CUDA_VISIBLE_DEVICES="$GPU_ID" "$PYTHON" scripts/demo/demo_soma.py \
-    --video "$VIDEO" -s --output_root outputs
+CUDA_VISIBLE_DEVICES="$GPU_ID" "$PYTHON" "$REPO_ROOT/scripts/demo/demo_soma.py" \
+    --video "$VIDEO" -s --output_root "$REPO_ROOT/outputs"
 
 OUT="$REPO_ROOT/outputs/$VIDEO_STEM/${VIDEO_STEM}_3_incam_global_horiz.mp4"
 echo

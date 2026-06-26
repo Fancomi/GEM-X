@@ -38,27 +38,27 @@ echo "[cuda] CUDA_HOME=$CUDA_HOME"
 command -v uv >/dev/null 2>&1 || { echo "[ERROR] 需要 uv, 先装: https://docs.astral.sh/uv/"; exit 1; }
 
 echo "[1/7] 创建虚拟环境 (python 3.10)"
-uv venv "$ENV_DIR" --python 3.10 2>/dev/null || true
+uv venv "$ENV_DIR" --python 3.10 || true
 PYTHON="$ENV_DIR/bin/python"
-UV_INSTALL="uv pip install --python $PYTHON --link-mode=copy"
+UV_INSTALL=(uv pip install --python "$PYTHON" --link-mode=copy)
 
 echo "[2/7] PyTorch 2.10.0 + torchvision 0.25.0 (cu126)"
-$UV_INSTALL torch==2.10.0+cu126 torchvision==0.25.0+cu126 --index-url https://download.pytorch.org/whl/cu126
+"${UV_INSTALL[@]}" torch==2.10.0+cu126 torchvision==0.25.0+cu126 --index-url https://download.pytorch.org/whl/cu126
 
 echo "[3/7] 初始化子模块 soma + sam-3d-body (跳过 soma-retargeter SSH)"
 cd "$REPO_ROOT"
 git submodule update --init third_party/soma third_party/sam-3d-body
 
 echo "[4/7] 安装 SOMA body model + 拉 LFS assets"
-$UV_INSTALL -e third_party/soma -i "$PIP_INDEX"
+"${UV_INSTALL[@]}" -e third_party/soma -i "$PIP_INDEX"
 ( cd third_party/soma && git lfs pull )
 
 echo "[5/7] editable 安装 gem 本仓库"
-$UV_INSTALL -e . -i "$PIP_INDEX"
+"${UV_INSTALL[@]}" -e "$REPO_ROOT" -i "$PIP_INDEX"
 
 echo "[6/7] SAM-3D-Body 运行时依赖 + detectron2"
-$UV_INSTALL -i "$PIP_INDEX" cloudpickle fvcore iopath pycocotools braceexpand roma 'setuptools<75'
-$UV_INSTALL 'git+https://github.com/facebookresearch/detectron2.git@a1ce2f9' --no-build-isolation --no-deps
+"${UV_INSTALL[@]}" -i "$PIP_INDEX" cloudpickle fvcore iopath pycocotools braceexpand roma 'setuptools<75'
+"${UV_INSTALL[@]}" 'git+https://github.com/facebookresearch/detectron2.git@a1ce2f9' --no-build-isolation --no-deps
 
 echo "[7/7] 链接 SOMA assets -> inputs/soma_assets"
 mkdir -p "$REPO_ROOT/inputs"

@@ -56,8 +56,9 @@ echo "[4/7] 安装 SOMA body model + 拉 LFS assets"
 echo "[5/7] editable 安装 gem 本仓库"
 "${UV_INSTALL[@]}" -e "$REPO_ROOT" -i "$PIP_INDEX"
 
-echo "[6/7] SAM-3D-Body 运行时依赖 + detectron2"
+echo "[6/7] SAM-3D-Body 运行时依赖 + onnxruntime-gpu + detectron2"
 "${UV_INSTALL[@]}" -i "$PIP_INDEX" cloudpickle fvcore iopath pycocotools braceexpand roma 'setuptools<75'
+"${UV_INSTALL[@]}" -i "$PIP_INDEX" onnxruntime-gpu
 "${UV_INSTALL[@]}" 'git+https://github.com/facebookresearch/detectron2.git@a1ce2f9' --no-build-isolation --no-deps
 
 echo "[7/7] 链接 SOMA assets -> inputs/soma_assets"

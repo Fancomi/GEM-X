@@ -11,7 +11,7 @@
 # 下载清单 (HF repo nvidia/GEM-X):
 #   gem_soma.ckpt                    -> inputs/pretrained/
 #   vitpose.pth                      -> inputs/checkpoints/vitpose/
-#   sam3d_body.ckpt + config.yaml    -> inputs/checkpoints/sam-3d-body-dinov3/
+#   sam3d_body.ckpt + model_config.yaml -> inputs/checkpoints/sam-3d-body-dinov3/
 #   mhr_model.pt                     -> inputs/mhr_data/
 #   scale_mean.pth + scale_comps.pth -> inputs/soma_data/
 set -e

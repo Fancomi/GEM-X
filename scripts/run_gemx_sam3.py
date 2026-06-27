@@ -35,13 +35,15 @@ def boxes_from_sam3_json(json_path):
         det = json.load(f)
     frames = det['frames']
     if not frames:
-        raise ValueError('no_frames')
+        raise ValueError(f'no frames in {json_path}')
     vi = det['video_info']
     src_w, src_h = int(vi['width']), int(vi['height'])
     rows = [(fd['frame_idx'], *fd['bbox']) for fd in frames]
     df = pd.DataFrame(rows, columns=['frame', 'x1', 'y1', 'x2', 'y2']).set_index('frame')
+    assert len(df) == len(df.index.unique()), f'duplicate frame_idx in {json_path}'
     lo, hi = int(df.index.min()), int(df.index.max())
     df = df.reindex(range(lo, hi + 1))
     df = df.interpolate(method='linear').bfill().ffill()
+    assert not df.isnull().values.any(), f'NaN after interpolation in {json_path}'
     boxes = df.values.astype(np.float32)  # (N,4)
     return boxes, lo, hi, src_w, src_h

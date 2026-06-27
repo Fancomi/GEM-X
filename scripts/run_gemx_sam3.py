@@ -77,3 +77,94 @@ def trim_video(src, lo, hi, dst):
     Path(dst).parent.mkdir(parents=True, exist_ok=True)
     save_video(frames, str(dst), fps=int(round(fps)), crf=23)
     return len(frames), float(fps)
+
+
+def process_video(vid, out_root):
+    import torch
+    import hydra
+    from types import SimpleNamespace
+    from gem.utils.net_utils import detach_to_cpu
+    from gem.utils.video_io_utils import merge_videos_horizontal
+    import demo_soma as D
+
+    detect_json = Path(DETECT_DIR) / f'{vid}.json'
+    src_video = Path(VIDEO_DIR) / f'{vid}.mp4'
+    if not detect_json.exists():
+        return False, 'no_detect_json', None
+    if not src_video.exists():
+        return False, 'no_video', None
+
+    boxes, lo, hi, W, H = boxes_from_sam3_json(str(detect_json))
+    out_dir = Path(out_root) / vid
+    out_dir.mkdir(parents=True, exist_ok=True)
+    trimmed = out_dir / f'{vid}.mp4'
+    n_trim, fps = trim_video(src_video, lo, hi, trimmed)
+    if n_trim != boxes.shape[0]:
+        return False, f'frame_mismatch(trim={n_trim},bbx={boxes.shape[0]})', None
+    fps_i = int(round(fps))
+
+    args = SimpleNamespace(
+        video=str(trimmed), output_root=str(out_root), static_cam=True,
+        verbose=False, render_mhr=False, ckpt=None,
+        exp='gem_soma_regression', sam3d_ckpt_path=None, sam3d_mhr_path=None)
+    cfg = D._build_cfg(args)  # cfg.video_path == trimmed (源 fps); 不调 _copy_video_if_needed
+
+    write_bbx_pt(boxes, W, H, cfg.paths.bbx)  # 注入 -> run_preprocess 跳过 YOLOX
+    D.run_preprocess(cfg)
+    D.render_2d_keypoints(
+        video_path=cfg.video_path, vitpose_path=cfg.paths.vitpose,
+        bbx_path=cfg.paths.bbx,
+        output_path=str(Path(cfg.output_dir) / '0_kp2d77_overlay.mp4'), fps=fps_i)
+
+    data = D.load_data_dict(cfg)
+    if not Path(cfg.paths.hpe_results).exists():
+        model = hydra.utils.instantiate(cfg.model, _recursive_=False)
+        model.load_pretrained_model(D.resolve_ckpt_path(cfg))
+        model = model.eval().cuda()
+        pred = model.predict(data, static_cam=cfg.static_cam, postproc=True)
+        torch.save(detach_to_cpu(pred), cfg.paths.hpe_results)
+
+    D.render_incam(cfg, fps=fps_i)
+    D.render_global_o3d(cfg, fps=fps_i)
+    merge_videos_horizontal(
+        [cfg.paths.incam_video, cfg.paths.global_video],
+        cfg.paths.incam_global_horiz_video)
+    return True, 'ok', {'frames': n_trim, 'fps': fps,
+                        'out': cfg.paths.incam_global_horiz_video}
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--videos', nargs='+', required=True,
+                        help='video stems (无扩展名), 与 run_sam3d_body 用法一致')
+    parser.add_argument('--gpu', type=int, default=0, help='物理 GPU id')
+    parser.add_argument('--out_root', default=str(REPO_ROOT / 'outputs' / 'sam3_gemx'),
+                        help='输出根 (默认 GEM-X/outputs/sam3_gemx)')
+    args = parser.parse_args()
+
+    os.environ['CUDA_VISIBLE_DEVICES'] = str(args.gpu)
+    os.environ.setdefault('PYOPENGL_PLATFORM', 'egl')
+    os.environ.setdefault('EGL_PLATFORM', 'surfaceless')
+    os.chdir(REPO_ROOT)  # SomaLayer 用相对路径 inputs/soma_assets
+    sys.path.insert(0, str(REPO_ROOT / 'scripts' / 'demo'))
+
+    passed, failed = 0, 0
+    for i, vid in enumerate(args.videos):
+        t0 = time.time()
+        try:
+            ok, reason, info = process_video(vid, args.out_root)
+        except Exception as e:
+            import traceback; traceback.print_exc()
+            ok, reason, info = False, f'EXC:{e}', None
+        if ok:
+            passed += 1
+            status = f"PASS ({info['frames']}f @ {info['fps']:.0f}fps, {time.time()-t0:.0f}s)\n        -> {info['out']}"
+        else:
+            failed += 1
+            status = f'FAIL:{reason}'
+        print(f'[{i+1}/{len(args.videos)}] {vid} -> {status}', flush=True)
+    print(f'Done! pass={passed} fail={failed}', flush=True)
+
+
+if __name__ == '__main__':
+    main()

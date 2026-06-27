@@ -109,6 +109,9 @@ def process_video(vid, out_root):
         exp='gem_soma_regression', sam3d_ckpt_path=None, sam3d_mhr_path=None)
     cfg = D._build_cfg(args)  # cfg.video_path == trimmed (源 fps); 不调 _copy_video_if_needed
 
+    # 清理上一次运行的派生产物 (帧段长度可能变), 避免与新 trimmed 视频长度错配
+    for p in (cfg.paths.vitpose, cfg.paths.vit_features, cfg.paths.hpe_results):
+        Path(p).unlink(missing_ok=True)
     write_bbx_pt(boxes, W, H, cfg.paths.bbx)  # 注入 -> run_preprocess 跳过 YOLOX
     D.run_preprocess(cfg)
     D.render_2d_keypoints(

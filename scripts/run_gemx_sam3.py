@@ -47,3 +47,31 @@ def boxes_from_sam3_json(json_path):
     assert not df.isnull().values.any(), f'NaN after interpolation in {json_path}'
     boxes = df.values.astype(np.float32)  # (N,4)
     return boxes, lo, hi, src_w, src_h
+
+
+def write_bbx_pt(boxes_xyxy_np, W, H, out_path):
+    """照抄 demo _run_human_detection: smooth -> clamp -> xys, 存 bbx.pt。"""
+    import torch
+    from gem.utils.kp2d_utils import smooth_bbx_xyxy
+    from gem.utils.geo_transform import get_bbx_xys_from_xyxy
+
+    bbx_xyxy = torch.from_numpy(np.asarray(boxes_xyxy_np)).float()
+    bbx_xyxy = smooth_bbx_xyxy(bbx_xyxy, window=5)
+    bbx_xyxy[:, [0, 2]] = bbx_xyxy[:, [0, 2]].clamp(0, W - 1)
+    bbx_xyxy[:, [1, 3]] = bbx_xyxy[:, [1, 3]].clamp(0, H - 1)
+    bbx_xys = get_bbx_xys_from_xyxy(bbx_xyxy, base_enlarge=1.2).float()
+    Path(out_path).parent.mkdir(parents=True, exist_ok=True)
+    torch.save({'bbx_xyxy': bbx_xyxy, 'bbx_xys': bbx_xys}, out_path)
+    return bbx_xyxy.shape[0]
+
+
+def trim_video(src, lo, hi, dst):
+    """裁出帧段 [lo,hi] (含两端), 保留源 fps 写到 dst。返回 (N, fps)。"""
+    import cv2
+    from gem.utils.video_io_utils import read_video_np, save_video
+
+    fps = cv2.VideoCapture(str(src)).get(cv2.CAP_PROP_FPS) or 30.0
+    frames = read_video_np(str(src), start_frame=lo, end_frame=hi + 1)  # [lo, hi+1)
+    Path(dst).parent.mkdir(parents=True, exist_ok=True)
+    save_video(frames, str(dst), fps=int(round(fps)), crf=23)
+    return len(frames), float(fps)

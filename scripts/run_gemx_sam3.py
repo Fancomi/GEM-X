@@ -70,7 +70,9 @@ def trim_video(src, lo, hi, dst):
     import cv2
     from gem.utils.video_io_utils import read_video_np, save_video
 
-    fps = cv2.VideoCapture(str(src)).get(cv2.CAP_PROP_FPS) or 30.0
+    cap = cv2.VideoCapture(str(src))
+    fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
+    cap.release()
     frames = read_video_np(str(src), start_frame=lo, end_frame=hi + 1)  # [lo, hi+1)
     Path(dst).parent.mkdir(parents=True, exist_ok=True)
     save_video(frames, str(dst), fps=int(round(fps)), crf=23)
